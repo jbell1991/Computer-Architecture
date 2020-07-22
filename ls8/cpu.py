@@ -7,6 +7,11 @@ HLT = 0b00000001
 LDI = 0b10000010
 PRN = 0b01000111
 MUL = 0b10100010
+ADD = 0b10100000
+PUSH = 0b01000101 
+POP = 0b01000110
+CALL = 0b01010000
+RET = 0b00010001
 
 class CPU:
     """Main CPU class."""
@@ -17,7 +22,10 @@ class CPU:
         self.ram = [0] * 256
         # hold 8 general-purpose registers
         self.reg = [0] * 8
+        # program counter
         self.pc = 0
+        # stack pointer
+        self.sp = 7
         self.running = True
     
     def ram_read(self, address):
@@ -39,23 +47,6 @@ class CPU:
                     continue
                 self.ram[address] = int(line, 2)
                 address += 1
-
-        # For now, we've just hardcoded a program:
-
-        # program = [
-        #     # From print8.ls8
-        #     0b10000010, # LDI R0,8
-        #     0b00000000,
-        #     0b00001000,
-        #     0b01000111, # PRN R0
-        #     0b00000000,
-        #     0b00000001, # HLT
-        # ]
-
-        # for instruction in program:
-        #     self.ram[address] = instruction
-        #     address += 1
-
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
@@ -91,11 +82,11 @@ class CPU:
     def run(self):
         """Run the CPU."""
         while self.running:
+            # self.trace()
             # instruction register
             instruction_register = self.ram_read(self.pc)
             # in case the instructions need them
-            operand_a = self.ram_read(self.pc + 1)
-            operand_b = self.ram_read(self.pc + 2)
+            operand_a, operand_b = self.ram_read(self.pc + 1), self.ram_read(self.pc + 2)
             # perform the actions needed for instruction per the LS-8 spec
             # halt the CPU (and exit the emulator)
             if instruction_register == HLT:
@@ -109,8 +100,27 @@ class CPU:
                 print(self.reg[operand_a])
                 self.pc += 2
             elif instruction_register == MUL:
-                self.reg[operand_a] *= self.reg[operand_b]
+                self.alu("MUL", operand_a, operand_b)
                 self.pc += 3
+            elif instruction_register == ADD:
+                self.alu("ADD", operand_a, operand_b)
+                self.pc += 3
+            elif instruction_register == PUSH:
+                # decrement the stack pointer
+                self.reg[self.sp] -= 1
+                self.ram_write(self.reg[operand_a], self.reg[self.sp])
+                self.pc += 2
+            elif instruction_register == POP:
+                self.reg[operand_a] = self.ram_read(self.reg[self.sp])
+                # increment the stack pointer
+                self.reg[self.sp] += 1
+                self.pc += 2
+            elif instruction_register == CALL:
+                self.reg[self.sp] -= 1
+                self.ram_write(self.pc + 2, self.reg[self.sp])
+                self.pc = self.reg[operand_a]
+            elif instruction_register == RET:
+                self.pc = self.ram_read(self.reg[self.sp])
+                self.reg[self.sp] += 1
             else: 
                 print("Instruction not valid")
-                
